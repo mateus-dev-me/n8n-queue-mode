@@ -1,0 +1,175 @@
+services:
+  postgres:
+    image: ankane/pgvector
+    container_name: postgres
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_DB: ${POSTGRES_DATABASE}
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+    restart: always
+    networks:
+      - n8n-network
+
+  redis:
+    image: redis:alpine
+    container_name: redis
+    command: redis-server --appendonly yes
+    volumes:
+      - redis-data:/data
+
+    restart: always
+    networks:
+      - n8n-network
+
+  n8n-main:
+    image: n8nio/n8n:latest
+    container_name: n8n-main
+    command: start
+    environment:
+      # --- Banco de Dados ---
+      DB_TYPE: postgresdb
+      DB_POSTGRESDB_HOST: postgres
+      DB_POSTGRESDB_PORT: 5432
+      DB_POSTGRESDB_DATABASE: ${POSTGRES_DB}
+      DB_POSTGRESDB_USER: ${POSTGRES_USER}
+      DB_POSTGRESDB_PASSWORD: ${POSTGRES_PASSWORD}
+
+      # --- Fila / Redis ---
+      QUEUE_BULL_REDIS_HOST: redis
+      QUEUE_BULL_REDIS_PORT: 6379
+      QUEUE_BULL_REDIS_DB: 2
+
+      # --- Chave de Criptografia ---
+      N8N_ENCRYPTION_KEY: ${N8N_ENCRYPTION_KEY}
+
+      # --- Configuração do n8n ---
+      EXECUTIONS_MODE: queue
+      N8N_RUNNERS_ENABLED: true
+      OFFLOAD_MANUAL_EXECUTIONS_TO_WORKERS: true
+      N8N_HOST: ${N8N_HOST}
+      N8N_EXTERNAL_FRONTEND_URL: ${N8N_URL}
+      WEBHOOK_URL: ${WEBHOOK_URL}
+      N8N_EXECUTION_DATA_PRUNE: "true"
+      N8N_EXECUTION_DATA_MAX_AGE: 168 # 7 dias em horas
+
+      # --- Ajustes de Fila (opcionais) ---
+      QUEUE_BULL_SETTINGS_STALLEDINTERVAL: 30000
+      QUEUE_BULL_SETTINGS_MAXSTALLEDCOUNT: 1
+    volumes:
+      - n8n-data:/home/node/.n8n
+    depends_on:
+      - postgres
+      - redis
+    restart: always
+    networks:
+      - n8n-network
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.n8n.rule=Host(`n8n.mateus-dev-me.com.br`)"
+      - "traefik.http.routers.n8n.entrypoints=websecure"
+      - "traefik.http.routers.n8n.tls.certresolver=letsencrypt"
+      - "traefik.http.services.n8n.loadbalancer.server.port=5678"
+      - "traefik.http.routers.n8n-http.rule=Host(`n8n.mateus-dev-me.com.br`)"
+      - "traefik.http.routers.n8n-http.entrypoints=web"
+      - "traefik.http.routers.n8n-http.middlewares=redirect-to-https"
+      - "traefik.http.middlewares.redirect-to-https.redirectscheme.scheme=https"
+      - "traefik.http.middlewares.redirect-to-https.redirectscheme.permanent=true"
+      - "traefik.forwardedHeaders.insecure=true"
+
+
+  n8n-worker:
+    image: n8nio/n8n:latest
+    command: worker
+    environment:
+      # --- Banco de Dados ---
+      DB_TYPE: postgresdb
+      DB_POSTGRESDB_HOST: postgres
+      DB_POSTGRESDB_PORT: 5432
+      DB_POSTGRESDB_DATABASE: ${POSTGRES_DB}
+      DB_POSTGRESDB_USER: ${POSTGRES_USER}
+      DB_POSTGRESDB_PASSWORD: ${POSTGRES_PASSWORD}
+      # --- Fila / Redis ---
+      QUEUE_BULL_REDIS_HOST: redis
+      QUEUE_BULL_REDIS_PORT: 6379
+      QUEUE_BULL_REDIS_DB: 2
+      # --- Chave de Criptografia ---
+      N8N_ENCRYPTION_KEY: ${N8N_ENCRYPTION_KEY}
+      # --- Configuração do n8n ---
+      EXECUTIONS_MODE: queue
+      N8N_RUNNERS_ENABLED: true
+      OFFLOAD_MANUAL_EXECUTIONS_TO_WORKERS: true
+      GENERIC_TIMEZONE: ${GENERIC_TIMEZONE}
+      N8N_BLOCK_ENV_ACCESS_IN_NODE: false
+      N8N_SECURE_COOKIE: false
+      N8N_ENFORCE_SETTINGS_FILE_PERMISSIONS: true
+      N8N_NODE_GC_MAX_OLD_SPACE_SIZE: 2048
+      N8N_COMMUNITY_PACKAGES_ALLOW_TOOL_USAGE: true
+      # --- Execuções e Limpeza ---
+      N8N_EXECUTION_DATA_PRUNE: "true"
+      N8N_EXECUTION_DATA_MAX_AGE: 168 # 7 dias em horas
+      # --- Ajustes de Fila (opcionais) ---
+      QUEUE_BULL_SETTINGS_STALLEDINTERVAL: 30000
+      QUEUE_BULL_SETTINGS_MAXSTALLEDCOUNT: 1
+    depends_on:
+      - postgres
+      - redis
+    restart: always
+    networks:
+      - n8n-network
+
+  n8n-webhook:
+    image: n8nio/n8n:latest
+    container_name: n8n-webhook
+    command: webhook
+    environment:
+      # --- Banco de Dados ---
+      DB_TYPE: postgresdb
+      DB_POSTGRESDB_HOST: postgres
+      DB_POSTGRESDB_PORT: 5432
+      DB_POSTGRESDB_DATABASE: ${POSTGRES_DB}
+      DB_POSTGRESDB_USER: ${POSTGRES_USER}
+      DB_POSTGRESDB_PASSWORD: ${POSTGRES_PASSWORD}
+
+      # --- Fila / Redis ---
+      QUEUE_BULL_REDIS_HOST: redis
+      QUEUE_BULL_REDIS_PORT: 6379
+      QUEUE_BULL_REDIS_DB: 2
+
+      # --- Chave de Criptografia ---
+      N8N_ENCRYPTION_KEY: ${N8N_ENCRYPTION_KEY}
+
+      # --- Configuração do n8n ---
+      EXECUTIONS_MODE: queue
+      N8N_RUNNERS_ENABLED: true
+      OFFLOAD_MANUAL_EXECUTIONS_TO_WORKERS: true
+      WEBHOOK_URL: ${WEBHOOK_URL}
+      GENERIC_TIMEZONE: ${GENERIC_TIMEZONE}
+      N8N_BLOCK_ENV_ACCESS_IN_NODE: false
+      N8N_SECURE_COOKIE: false
+      N8N_ENFORCE_SETTINGS_FILE_PERMISSIONS: true
+      N8N_NODE_GC_MAX_OLD_SPACE_SIZE: 2048
+      N8N_COMMUNITY_PACKAGES_ALLOW_TOOL_USAGE: true
+
+      # --- Execuções e Limpeza ---
+      N8N_EXECUTION_DATA_PRUNE: "true"
+      N8N_EXECUTION_DATA_MAX_AGE: 168 # 7 dias em horas
+
+      # --- Ajustes de Fila (opcionais) ---
+      QUEUE_BULL_SETTINGS_STALLEDINTERVAL: 30000
+      QUEUE_BULL_SETTINGS_MAXSTALLEDCOUNT: 1
+    depends_on:
+      - postgres
+      - redis
+    restart: always
+    networks:
+      - n8n-network
+
+volumes:
+  postgres-data:
+  redis-data:
+  n8n-data:
+
+networks:
+  n8n-network:
