@@ -20,7 +20,7 @@ Este repositório fornece uma configuração completa para executar o n8n em mod
 n8n-queue-mode/
 ├── .env.example          # Variáveis de ambiente de exemplo
 ├── docker-compose.yml    # Configuração do Docker Compose
-├── n8n-stack.yml         # Definições de serviços para Docker Swarm
+├── docker-swarm.yml      # Definições de serviços para Docker Swarm
 ├── Makefile              # Automação de tarefas
 └── .gitignore            # Arquivos a serem ignorados pelo Git
 ```
